@@ -292,3 +292,72 @@ export const deletePortfolioItem = async (id, imagePaths = []) => {
     throw error;
   }
 };
+
+/**
+ * Fetches paginated portfolio items from Firestore with optional category filter
+ * @param {number} page - Page number (starts from 1)
+ * @param {number} limit - Number of items per page
+ * @param {string} category - Optional category filter
+ * @returns {Promise<Object>} Object containing items, total count, and pagination info
+ */
+export const getPaginatedPortfolioItems = async (page = 1, limit = 10, category = null) => {
+  try {
+    const portfolioCollection = collection(db, 'portfolio');
+    let portfolioQuery = portfolioCollection;
+    
+    if (category) {
+      portfolioQuery = query(portfolioCollection, where("category", "==", category));
+    }
+    
+    const portfolioSnapshot = await getDocs(portfolioQuery);
+    const totalItems = portfolioSnapshot.docs.length;
+    
+    const portfolioItems = portfolioSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    // Sort items by position
+    const sortedItems = portfolioItems.sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+    
+    // Calculate pagination
+    const startIndex = (page - 1) * limit;
+    const endIndex = page * limit;
+    const paginatedItems = sortedItems.slice(startIndex, endIndex);
+    
+    return {
+      items: paginatedItems,
+      totalItems,
+      currentPage: page,
+      totalPages: Math.ceil(totalItems / limit),
+      hasMore: endIndex < totalItems,
+      category: category
+    };
+  } catch (error) {
+    console.error('Error getting paginated portfolio items:', error);
+    throw error;
+  }
+};
+
+/**
+ * Fetches unique categories from portfolio items
+ * @returns {Promise<Array<string>>} Array of unique categories
+ */
+export const getPortfolioCategories = async () => {
+  try {
+    const portfolioCollection = collection(db, 'portfolio');
+    const portfolioSnapshot = await getDocs(portfolioCollection);
+    
+    // Extract unique categories
+    const categories = new Set();
+    portfolioSnapshot.docs.forEach(doc => {
+      const category = doc.data().category;
+      if (category) categories.add(category);
+    });
+    
+    return Array.from(categories);
+  } catch (error) {
+    console.error('Error getting portfolio categories:', error);
+    throw error;
+  }
+};
